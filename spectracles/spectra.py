@@ -1,3 +1,4 @@
+from __future__ import division, print_function
 import numpy as np
 import astroquery.vizier
 import astroquery.simbad
@@ -128,7 +129,7 @@ def getRef(ref): #finds the reference (in the form "Herczeg+ 2014") for a given 
     reference=description[description.rfind('(')+1:description.rfind(')')]
     return reference.replace(",","") #removes any commas
     
-def getVizierSpectra(ra,dec,windowSize=2):
+def getVizierSED(ra,dec,windowSize=2):
     #star=astroquery.simbad.Simbad.query_object(mainName)
     #starDict=getInfo(name=name,ra=ra,dec=dec)
     raString=str(ra).replace(' ','+').strip()
@@ -250,15 +251,15 @@ def queryIrsa(ra,dec,windowSize=2): #at the moment only queries the Herchel poin
             es.append(error*c*1e-17/wl**2)
     return np.array(ls),np.array(fs),np.array(es)
 
-#def getIrsaSpectra(tmName):
+#def getIrsaSED(tmName):
 #    mainName,tmName,ra,dec,spType,objectType=getInfo(name='2MASS '+tmName)
 #    irsaLs,irsaFs,irsaEs=queryIrsa(ra,dec)
 #    if irsaLs[irsaLs<2e-4].size>0:
-#        addToSpectra(tmName,irsaLs[irsaLs<2e-4],irsaFs[irsaLs<2e-4],irsaEs[irsaLs<2e-4],2017,'Marton+ 2017','Herschel')
+#        addToSED(tmName,irsaLs[irsaLs<2e-4],irsaFs[irsaLs<2e-4],irsaEs[irsaLs<2e-4],2017,'Marton+ 2017','Herschel')
 #    if irsaLs[irsaLs>2e-4].size>0:
-#        addToSpectra(tmName,irsaLs[irsaLs>2e-4],irsaFs[irsaLs>2e-4],irsaEs[irsaLs>2e-4],2017,'Schulz+ 2017','Herschel')
+#        addToSED(tmName,irsaLs[irsaLs>2e-4],irsaFs[irsaLs>2e-4],irsaEs[irsaLs>2e-4],2017,'Schulz+ 2017','Herschel')
 
-# Finds and returns all spectral data readable online (from Vizier & IRAS) for a given object, can also save it to file        
+# Finds and returns all SED data readable online (from Vizier & IRAS) for a given object, can also save it to file        
 def getSED(name=-1,ra=-1,dec=-1,saveDir=-1,windowSize=2,overwrite=0):
     starDict=getInfo(name=name,ra=ra,dec=dec)
     ra=starDict['RA']
@@ -285,7 +286,7 @@ def getSED(name=-1,ra=-1,dec=-1,saveDir=-1,windowSize=2,overwrite=0):
     columnNames=('lambda', 'flux', 'error','source','telescope')
     #HOW CAN I SAVE AS SCIENTIFIC NOTATION FOR A FIXED NUMBER OF SIGNIFICANT FIGURES???
     dataTypes=('f4','f4','f4','object','object') # note: strings must be treated as objects not strings to allow variable length 
-    vLs,vFs,vEs,vSs,vTs = getVizierSpectra(ra,dec,windowSize=windowSize) #spectra from vizier
+    vLs,vFs,vEs,vSs,vTs = getVizierSED(ra,dec,windowSize=windowSize) #SED data from vizier
     table=astropy.table.Table([vLs,vFs,vEs,vSs,vTs],names=columnNames,dtype=dataTypes)
     
     iLs,iFs,iEs = queryIrsa(ra,dec,windowSize=windowSize)
@@ -306,8 +307,8 @@ def getSED(name=-1,ra=-1,dec=-1,saveDir=-1,windowSize=2,overwrite=0):
     'Meta data about the star is stored under indivdual fields',
     'e.g. if data stored in variable called "dataTable" the R.A. of the star can be found via "dataTable.meta["RA"]".',
     'Everything intended to be read into astropy tables - either directly or via the getSEDFromFile() function.',
-    'See GITHUB-REPO for more details.',
-    'Please cite SOME-PAPER if you make use of this tool or data.']
+    'See https://github.com/zpenoyre/spectracles for more details.',
+    'Please cite Penoyre+2018 if you make use of this tool or data.']
     table.meta['comments']=comments
     
     if saveDir!=-1:
@@ -330,7 +331,7 @@ def addPropertyToFile(starDict):
     starDict['ExtraField']='' #adding a spare field for whatever data a user might want to put in
     return starDict
     
-# Retrieves a spectra from file
+# Retrieves an SED from file
 def getSEDFromFile(twoMassID,saveDir):
     if saveDir[-1]!='/':
         saveDir=saveDir+'/'
@@ -356,8 +357,8 @@ def getSEDFromFile(twoMassID,saveDir):
         print(fName)
         return -1
         
-# Adds new data points to an existing spectra, tries not to duplicate anything
-def addToSpectra(twoMassID,saveDir,ls,fs,es,source,telescope,overwrite=0):
+# Adds new data points to an existing SED, tries not to duplicate anything
+def addToSED(twoMassID,saveDir,ls,fs,es,source,telescope,overwrite=0):
     table=getSEDFromFile(twoMassID,saveDir)
     if (source in np.unique(table['source'])) & (overwrite!=1):
         print('\n Already data in table from this source (',source,')')
@@ -460,7 +461,7 @@ def rewriteExtraField(twoMassID,saveDir,entry):
     astropy.io.ascii.write(table,output=fName, format='ecsv')
     return table
     
-def plotSpectra(thisPlot,table,
+def plotSED(thisPlot,table,
 colours=['#6699CC','#FFD23F','#FF8C42','#FF3C38','#A23E48'],
 telescopes=['Gaia','2MASS','WISE','Spitzer','Herschel']):
     ls=table['lambda']
