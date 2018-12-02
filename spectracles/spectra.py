@@ -259,7 +259,7 @@ def queryIrsa(ra,dec,windowSize=2): #at the moment only queries the Herchel poin
 #        addToSpectra(tmName,irsaLs[irsaLs>2e-4],irsaFs[irsaLs>2e-4],irsaEs[irsaLs>2e-4],2017,'Schulz+ 2017','Herschel')
 
 # Finds and returns all spectral data readable online (from Vizier & IRAS) for a given object, can also save it to file        
-def getSpectra(name=-1,ra=-1,dec=-1,saveDir=-1,windowSize=2,overwrite=0):
+def getSED(name=-1,ra=-1,dec=-1,saveDir=-1,windowSize=2,overwrite=0):
     starDict=getInfo(name=name,ra=ra,dec=dec)
     ra=starDict['RA']
     dec=starDict['DEC']
@@ -280,7 +280,7 @@ def getSpectra(name=-1,ra=-1,dec=-1,saveDir=-1,windowSize=2,overwrite=0):
                 print('To overwrite the file function use argument overwrite = 1 (default = 0)')
                 print('Or to supress this warning set overwrite = -1')
             #table=astropy.io.ascii.read(fName)
-            return getSpectraFromFile(starDict['2MASSID'],saveDir)
+            return getSEDFromFile(starDict['2MASSID'],saveDir)
     
     columnNames=('lambda', 'flux', 'error','source','telescope')
     #HOW CAN I SAVE AS SCIENTIFIC NOTATION FOR A FIXED NUMBER OF SIGNIFICANT FIGURES???
@@ -305,7 +305,7 @@ def getSpectra(name=-1,ra=-1,dec=-1,saveDir=-1,windowSize=2,overwrite=0):
     comments=['All units for flux+wavelength are SI, I leave it to the user to convert/add astropy units',
     'Meta data about the star is stored under indivdual fields',
     'e.g. if data stored in variable called "dataTable" the R.A. of the star can be found via "dataTable.meta["RA"]".',
-    'Everything intended to be read into astropy tables - either directly or via the getSpectraFromFile() function.',
+    'Everything intended to be read into astropy tables - either directly or via the getSEDFromFile() function.',
     'See GITHUB-REPO for more details.',
     'Please cite SOME-PAPER if you make use of this tool or data.']
     table.meta['comments']=comments
@@ -331,7 +331,7 @@ def addPropertyToFile(starDict):
     return starDict
     
 # Retrieves a spectra from file
-def getSpectraFromFile(twoMassID,saveDir):
+def getSEDFromFile(twoMassID,saveDir):
     if saveDir[-1]!='/':
         saveDir=saveDir+'/'
     fName=saveDir+twoMassID+'.ecsv'
@@ -358,7 +358,7 @@ def getSpectraFromFile(twoMassID,saveDir):
         
 # Adds new data points to an existing spectra, tries not to duplicate anything
 def addToSpectra(twoMassID,saveDir,ls,fs,es,source,telescope,overwrite=0):
-    table=getSpectraFromFile(twoMassID,saveDir)
+    table=getSEDFromFile(twoMassID,saveDir)
     if (source in np.unique(table['source'])) & (overwrite!=1):
         print('\n Already data in table from this source (',source,')')
         print("We assume you don't want to duplicate data points so just returning the table saved to file")
@@ -395,8 +395,8 @@ def addToMetadata(twoMassID,saveDir,field,value,source,overwrite=0):
     if np.ma.is_masked(value):
         print('\n Trying to record a masked (i.e. not valid) value of ',field)
         print('Returning original table instead')
-        return getSpectraFromFile(twoMassID,saveDir)
-    table=getSpectraFromFile(twoMassID,saveDir)
+        return getSEDFromFile(twoMassID,saveDir)
+    table=getSEDFromFile(twoMassID,saveDir)
     if (field not in table.meta.keys()) | ('ource' in field):
         print('\n No property called ',field,' in table')
         print('Valid properties stored in metadata are:')
@@ -433,7 +433,7 @@ def addToMetadata(twoMassID,saveDir,field,value,source,overwrite=0):
     
 # Very similar to above, except now we may want multiple sources for one star (specifying that all these papers touch on this star)
 def addRegionToMetadata(twoMassID,saveDir,region,source):
-    table=getSpectraFromFile(twoMassID,saveDir)
+    table=getSEDFromFile(twoMassID,saveDir)
     if table.meta['Region']=='': # no record of this stars region at the moment
         table.meta['Region']=region
         table.meta['RegionSource']=source
@@ -452,7 +452,7 @@ def addRegionToMetadata(twoMassID,saveDir,region,source):
 # Note - I've sometimes used this to record the parameters of fitting models
 # You can put lists or dictionaries in here, as long as you decide how to convert them to strings and back
 def rewriteExtraField(twoMassID,saveDir,entry):
-    table=getSpectraFromFile(twoMassID,saveDir)
+    table=getSEDFromFile(twoMassID,saveDir)
     table.meta['ExtraField']
     if saveDir[-1]!='/':
         saveDir=saveDir+'/'
@@ -468,13 +468,26 @@ telescopes=['Gaia','2MASS','WISE','Spitzer','Herschel']):
     es=table['error']
     ss=table['source']
     ts=table['telescope']
-    noTel=np.flatnonzero(~np.isin(ts,telescopes))
-    thisPlot.scatter(ls[noTel],ls[noTel]*fs[noTel],s=10,c='grey')
     for i in range(len(telescopes)):
         tel=telescopes[i]
         col=colours[i]
-        thisTel=np.flatnonzero(ts==tel)
-        thisPlot.scatter(ls[thisTel],ls[thisTel]*fs[thisTel],s=10,c=col)
+        points=np.flatnonzero((ts==tel) & (es>0))
+        thisPlot.errorbar(ls[points],ls[points]*fs[points],yerr=ls[points]*es[points],color=col,fmt='o',lw=1,zorder=4,label=tel)
+        uppers=np.flatnonzero((ts==tel) & (es<=0))
+        thisPlot.scatter(ls[uppers],ls[uppers]*fs[uppers],facecolors='w',edgecolors=col,marker='v',zorder=3,label='')
+    noTel=np.flatnonzero((~np.isin(ts,telescopes)) & (es>0))
+    thisPlot.errorbar(ls[noTel],ls[noTel]*fs[noTel],yerr=ls[noTel]*es[noTel],color='grey',fmt='o',lw=1,zorder=2,label='Other')
+    noTelUppers=np.flatnonzero((~np.isin(ts,telescopes)) & (es<=0))
+    thisPlot.scatter(ls[noTelUppers],ls[noTelUppers]*fs[noTelUppers],facecolors='w',edgecolors='grey',marker='v',zorder=1,label='')
     
+    thisPlot.set_yscale('log')
+    thisPlot.set_ylim(0.1*np.min(ls*fs),10*np.max(ls*fs))
+    thisPlot.set_xscale('log')
+    thisPlot.set_xlim(0.5*np.min(ls),2*np.max(ls))
+    
+    thisPlot.set_ylabel(r'$\lambda F_\lambda$ (W m)')
+    thisPlot.set_xlabel(r'$\lambda$ (m)')
+    
+    thisPlot.legend(title=table.meta['SimbadName'],frameon=False)
         
     
